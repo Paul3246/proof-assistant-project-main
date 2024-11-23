@@ -105,6 +105,13 @@ let string_of_seq seq =
   let ctx, ty = seq in
   Printf.sprintf "%s ⊢ %s" (string_of_ctx ctx) (string_of_ty ty)
 
+let find x env =
+  try List.assoc x env with Not_found -> raise Not_found
+
+let fresh_var =
+  let r = ref 0 in
+  fun () -> incr r; Printf.sprintf "x%d" !r
+
 let rec prove env a =
   print_endline (string_of_seq (env,a));
   print_string "? "; flush_all ();
@@ -126,6 +133,11 @@ let rec prove env a =
             let x = arg in
             let t = prove ((x,a)::env) b in
             Abs (x, a, t)
+        |TPair (a, b) ->
+          let ta = prove env a in
+          let tb = prove env b in
+          Pair (ta, tb)
+        | TUnit -> Unit
         | _ ->
           error "Don't know how to introduce this."
       )
@@ -133,6 +145,70 @@ let rec prove env a =
       let t = tm_of_string arg in
       if infer_type env t <> a then error "Not the right type."
       else t
+  | "elim" ->
+      if arg = "" then error "Please provide an argument for elim." else
+      let t = tm_of_string arg in
+      let t_type = find arg env in
+      (
+        match t_type with
+        | TArr (a', b) ->
+          if a <> b then error "Not the right type."
+          else
+            let u = prove env a' in
+            App (t, u)
+        | TCoprod (a', b') ->
+          let var_left = fresh_var () in
+          let var_right = fresh_var () in
+          let u = Abs(var_left, a', prove ((var_left, a')::env) a) in
+          let v = Abs(var_right, b', prove ((var_right, b')::env) a) in
+          Case (t, u, v)
+        | TFalse -> Absurd (t, a)
+        | _ -> error "Not the right type."
+      )
+  | "cut" ->
+      let n_type = ty_of_string arg in
+      let n_a = TArr (n_type, a) in
+      let t = prove env n_a in
+      let u = prove env n_type in
+      App (t, u)
+  | "fst" ->
+    if arg = "" then error "Please provide an argument for fst." else
+    let t = tm_of_string arg in
+    let t_type = infer_type env t in
+    (
+      match t_type with
+      | TPair (a', _) ->
+        if a <> a' then error "Not the right type."
+        else
+          Fst t
+      | _ -> error "Not the right type."
+    )
+  | "snd" ->
+    if arg = "" then error "Please provide an argument for snd." else
+    let t = tm_of_string arg in
+    let t_type = infer_type env t in
+    (
+      match t_type with
+      | TPair (_, b') ->
+        if a <> b' then error "Not the right type."
+        else
+          Snd t
+      | _ -> error "Not the right type."
+    )
+  | "left" ->
+    begin match a with
+    | TCoprod (a', b') ->
+      let t = prove env a' in
+      Left (t, b')
+    | _ -> error "Not the right type."
+    end
+  | "right" ->
+    begin match a with
+    | TCoprod (a', b') ->
+      let t = prove env b' in
+      Right (a', t)
+    | _ -> error "Not the right type."
+    end
   | cmd -> error ("Unknown command: " ^ cmd)
           
 let () =
