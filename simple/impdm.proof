@@ -2,7 +2,6 @@
 intro x
 intro y
 elim x
-elim x1
 cut ⊥
 intro z
 elim z
