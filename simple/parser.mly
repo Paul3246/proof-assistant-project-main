@@ -7,6 +7,8 @@ open Expr
 %token LPAR RPAR COLON COMMA BAR
 %token FST SND LEFT RIGHT ABSURD
 %token <string> IDENT
+%token NAT
+%token ZERO SUCC REC
 %token EOF
 
 %right IMP
@@ -30,6 +32,10 @@ ty:
   | TRUE      { TUnit }
   | FALSE     { TFalse }
   | LPAR ty RPAR { $2 }
+  | NAT  { TNat }
+  | ZERO { TZero }
+  | SUCC ty { TSuc $2 }
+  | REC LPAR ty COMMA ty COMMA ty RPAR { TRec ($3, $5, $7) }
 
 /* A term */
 tm:
@@ -53,3 +59,6 @@ stm:
   | LEFT LPAR tm COMMA ty RPAR   { Left ($3, $5) }
   | RIGHT LPAR ty COMMA tm RPAR  { Right ($3, $5) }
   | ABSURD LPAR tm COMMA ty RPAR { Absurd ($3, $5) }
+  | ZERO                         { Zero }
+  | SUCC tm                      { Suc $2 }
+  | REC tm LPAR tm COMMA tm RPAR { Rec ($2, $4, $6) }

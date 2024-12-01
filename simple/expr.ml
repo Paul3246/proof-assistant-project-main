@@ -11,6 +11,11 @@ type ty =
   | TUnit
   | TCoprod of ty * ty
   | TFalse
+  | TNat
+  | TZero
+  | TSuc of ty
+  | TRec of ty * ty * ty
+
 
 (** Terms. *)
 type tm =
@@ -25,3 +30,6 @@ type tm =
 | Right of ty * tm
 | Case of tm * tm * tm
 | Absurd of tm * ty
+| Zero
+| Suc of tm
+| Rec of tm * tm * tm

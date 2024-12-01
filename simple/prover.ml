@@ -20,6 +20,10 @@ let rec string_of_ty ty =
   | TUnit -> "(⊤)"
   | TCoprod (ty1, ty2) -> Printf.sprintf "(%s ∨ %s)" (string_of_ty ty1) (string_of_ty ty2)
   | TFalse -> "⊥"
+  | TNat -> "ℕ"
+  | TZero -> "0"
+  | TSuc ty -> Printf.sprintf "S(%s)" (string_of_ty ty)
+  | TRec (ty1, ty2, ty3) -> Printf.sprintf "rec(%s, %s, %s)" (string_of_ty ty1) (string_of_ty ty2) (string_of_ty ty3)
 
 (*gives a string representation of a term*)
 let rec string_of_tm tm =
@@ -39,6 +43,9 @@ let rec string_of_tm tm =
   | Case (tm1, tm2, tm3) ->
     Printf.sprintf "(case %s of %s | %s)" (string_of_tm tm1) (string_of_tm tm2) (string_of_tm tm3)
   | Absurd (tm, _) -> Printf.sprintf "(absurd %s)" (string_of_tm tm)
+  | Zero -> "0"
+  | Suc tm -> Printf.sprintf "S(%s)" (string_of_tm tm)
+  | Rec (tm1, tm2, tm3) -> Printf.sprintf "rec(%s, %s, %s)" (string_of_tm tm1) (string_of_tm tm2) (string_of_tm tm3)
 
 let rec infer_type ctx tm =
     match tm with
@@ -90,6 +97,17 @@ let rec infer_type ctx tm =
       | TFalse -> ty
       | _ -> raise Type_error
       end
+    | Zero -> TNat
+    | Suc tm ->begin
+      match infer_type ctx tm with
+      | TNat -> TNat
+      | _ -> raise Type_error
+      end
+    | Rec (tm1, tm2, tm3) ->begin
+      match infer_type ctx tm1, infer_type ctx tm2, infer_type ctx tm3 with
+      | TNat , ty1, TArr(TNat , TArr(ty2, ty3)) when ty1 = ty2 && ty2 = ty3 -> ty1
+      | _ -> raise Type_error
+      end
   and check_type ctx tm ty =
     if infer_type ctx tm = ty then () else raise Type_error
 
@@ -138,6 +156,16 @@ let rec prove env a =
           let tb = prove env b in
           Pair (ta, tb)
         | TUnit -> Unit
+        | TNat ->
+          if arg = "" then error "Please provide an argument for intro." else
+            begin
+            match arg with
+            | "zero" -> Zero
+            | "suc" ->
+              let t = prove env TNat in
+              Suc t
+            | _ -> error "Don't know how to introduce this."
+            end
         | _ ->
           error "Don't know how to introduce this."
       )
@@ -163,6 +191,10 @@ let rec prove env a =
           let v = Abs(var_right, b', prove ((var_right, b')::env) a) in
           Case (t, u, v)
         | TFalse -> Absurd (t, a)
+        | TNat ->
+          let z = prove env a in
+          let s = prove env (TArr (TNat, TArr (a, a))) in
+          Rec (t, z, s)
         | _ -> error "Not the right type."
       )
   | "cut" ->
