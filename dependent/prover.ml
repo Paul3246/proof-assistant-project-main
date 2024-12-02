@@ -10,22 +10,47 @@ exception Type_error of string
 
 (* Fill me in! *)
 
-let to_string e =
-  let rec to_string' e =
-    match e with
-    | Type -> "Type"
-    | Var x -> x
-    | App (e1, e2) -> Printf.sprintf "(%s %s)" (to_string' e1) (to_string' e2)
-    | Abs (x, t, e) -> Printf.sprintf "(λ%s : %s. %s)" x (to_string' t) (to_string' e)
-    | Pi (x, t, e) -> Printf.sprintf "(Π%s : %s. %s)" x (to_string' t) (to_string' e)
-    | Nat -> "Nat"
-    | Z -> "Z"
-    | S e -> Printf.sprintf "S(%s)" (to_string' e)
-    | Ind (n, z, s, e) -> Printf.sprintf "ind(%s, %s, %s, %s)" (to_string' n) (to_string' z) (to_string' s) (to_string' e)
-    | Eq (e1, e2) -> Printf.sprintf "Eq(%s, %s)" (to_string' e1) (to_string' e2)
-    | Refl e -> Printf.sprintf "refl(%s)" (to_string' e)
-    | J (a, m, d, e1, e2) -> Printf.sprintf "J(%s, %s, %s, %s, %s)" (to_string' a) (to_string' m) (to_string' d) (to_string' e1) (to_string' e2)
-  in to_string' e
+let rec to_string = function
+  | Type -> "Set"
+  | Var x -> x
+  | App (t1, t2) ->
+    let s1, s2 = (to_string t1, to_string t2) in
+    Format.sprintf "(%s %s)" s1 s2
+  | Abs (x, t1, t2) ->
+    let s1, s2 = (to_string t1, to_string t2) in
+    Format.sprintf "(λ (%s : %s) → %s)" x s1 s2
+  | Pi (x, t1, t2) ->
+    let s1, s2 = (to_string t1, to_string t2) in
+    Format.sprintf "(Π (%s : %s) → %s)" x s1 s2
+  | Nat -> "ℕ"
+  | Z -> "0"
+  | S tm -> string_of_suc tm
+  | Ind (t1, t2, t3, t4) ->
+    let s1, s2, s3, s4 =
+      (to_string t1, to_string t2, to_string t3, to_string t4)
+    in
+    Format.sprintf "(Ind %s %s %s %s)" s1 s2 s3 s4
+  | Eq (t1, t2) ->
+    let s1, s2 = (to_string t1, to_string t2) in
+    Format.sprintf "(%s = %s)" s1 s2
+  | Refl tm -> Format.sprintf "(Refl %s)" @@ to_string tm
+  | J (t1, t2, t3, t4, t5) ->
+    let s1, s2, s3, s4, s5 =
+      (to_string t1, to_string t2, to_string t3, to_string t4, to_string t5)
+    in
+    Format.sprintf "(J %s %s %s %s %s)" s1 s2 s3 s4 s5
+
+(** Provides a number of a term of form S S S S S Z *)
+and string_of_suc t =
+  let rec loop t n =
+    match t with
+    | Z -> Some n
+    | S t -> loop t (n + 1)
+    | _ -> None
+  in
+  match loop t 1 with
+  | None -> Format.sprintf "(Suc %s)" @@ to_string t
+  | Some n -> string_of_int n
 
 let rec has_fv x lambda =
   match lambda with
@@ -68,7 +93,9 @@ let rec subst x t u =
   | Pi (y, t', u') ->
     if has_fv y t then
       let y' = fresh_var () in
-      Pi (y', subst y (Var y') t, subst y (Var y') u')
+      let new_t' = subst y (Var y') t' in
+      let new_u' = subst y (Var y') u' in
+      Pi (y', subst x t new_t', subst x t new_u')
     else if x = y then
       Pi (y, t', u')
     else
@@ -121,26 +148,26 @@ let normalize ctx e =
     | Nat -> Nat
     | Z -> Z
     | S e -> S (normalize' ctx e)
-    | Ind (n, z, s, e) ->
-        let n' = normalize' ctx n in
+    | Ind (p, z, s, n) ->
+        let p' = normalize' ctx p in
         let z' = normalize' ctx z in
         let s' = normalize' ctx s in
-        let e' = normalize' ctx e in
-        (match e' with
-        | Z -> z'
-        | S ent -> App(s, App(ent, Ind(n, z, s, ent)))
-        | _ -> Ind(n', z', s', e'))
+        let n' = normalize' ctx n in
+        (match n' with
+        | Z -> normalize' ctx z'
+        | S ent -> normalize' ctx (App(App(s', ent), Ind(p', z', s', ent)))
+        | _ -> Ind(p', z', s', n'))
     | Eq (e1, e2) -> Eq (normalize' ctx e1, normalize' ctx e2)
     | Refl e -> Refl (normalize' ctx e)
-    | J (a, m, d, e1, e2) ->
-      let a' = normalize' ctx a in
-      let m' = normalize' ctx m in
-      let d' = normalize' ctx d in
-      let e1' = normalize' ctx e1 in
-      let e2' = normalize' ctx e2 in
-      (match e2' with
-      | Refl e when d' = e1' && e1' = e -> App (m', e)
-      | _ -> J (a', m', d', e1', e2'))
+    | J (p, r, x, y, e) ->
+      let p' = normalize' ctx p in
+      let r' = normalize' ctx r in
+      let x' = normalize' ctx x in
+      let y' = normalize' ctx y in
+      let e' = normalize' ctx e in
+      (match e' with
+      | Refl e when x' = y' && y' = e -> normalize' ctx (App (r', e))
+      | _ -> J (p', r', x', y', e'))
   in normalize' ctx e
 
 let alpha e1 e2 =
@@ -179,6 +206,7 @@ let rec infer ctx e =
     | Pi (x, t, e) ->
       let inferred_t = infer ctx e2 in
       if conv ctx inferred_t t then
+        (* check ctx e2 t; *)
         subst x e2 e
       else
         let err = Printf.sprintf "Expected type %s but got type %s" (to_string t) (to_string inferred_t) in
@@ -191,10 +219,11 @@ let rec infer ctx e =
     let e' = infer ctx' e in
     Pi (x, t, e')
   | Pi (x, t, e) ->
+    check ctx t Type;
     let ctx' = (x, (t, None)) :: ctx in
     check ctx' e Type;
     Type
-  | Nat -> Nat
+  | Nat -> Type
   | Z -> Nat
   | S e ->
     check ctx e Nat;
@@ -218,20 +247,75 @@ let rec infer ctx e =
     let t1 = infer ctx e1 in
     let t2 = infer ctx e2 in
     if conv ctx t1 t2 then
-      Eq (t1, t2)
+      Type
     else
       let err = Printf.sprintf "Types %s and %s are not convertible" (to_string t1) (to_string t2) in
       raise (Type_error err)
   | Refl e ->
-    let t = infer ctx e in
-    (* Eq(t, t) *)
-    Refl t
-  |_ -> raise (Type_error "Not implemented")
+    let _ = infer ctx e in
+    Eq(e, e)
+  | J (p, r, x, y, e) ->
+    let inferred_p = infer ctx p in
+    let inferred_r = infer ctx r in
+    let inferred_x = infer ctx x in
+    let inferred_y = infer ctx y in
+    let inferred_e = infer ctx e in
+    (match inferred_p with
+      |Pi(x', type_A, Pi(y', type_A', Pi(_, Eq(x'',y''), Type)))->
+        if not (conv ctx type_A type_A') then
+          raise (Type_error "in J, x and y must have the same type")
+        else if not (conv ctx (Var x') x'') then
+          raise (Type_error "in J, x and x' must be convertible")
+        else if not (conv ctx (Var y') y'') then
+          raise (Type_error "in J, y and y' must be convertible")
+        else
+          (match inferred_r with
+            | Pi (_x', _type_a, Type)->
+              (* if not (conv ctx type_a type_A) then
+                raise (Type_error "in J, x must have the same type as x in Pi")
+              else if not (conv ctx (Var x') x'') then
+                raise (Type_error "in J, x must be convertible to x' in Pi")
+              else if not (conv ctx x'' x''') then
+                raise (Type_error "in J, x' must be convertible to x'' in Pi")
+              else if not (conv ctx x''' x'''') then
+                raise (Type_error "in J, x'' must be convertible to x''' in Pi")
+              else if not (conv ctx p' p) then
+                raise (Type_error "in J, p' must be convertible to p in Pi")
+              else *)
+                (
+                  match inferred_x with
+                  | typ_a ->
+                    if not (conv ctx typ_a type_A) then
+                      raise (Type_error "in J, x must have the same type as x in Pi")
+                    else
+                      (
+                        match inferred_y with
+                        | typ_b ->
+                          if not (conv ctx typ_b type_A) then
+                            raise (Type_error "in J, y must have the same type as x in Pi")
+                          else
+                            (
+                              match inferred_e with
+                              | Eq(a, b) ->
+                                if not (conv ctx a x) then
+                                  raise (Type_error "in J, a must be convertible to x")
+                                else if not (conv ctx b y) then
+                                  raise (Type_error "in J, b must be convertible to y")
+                                else
+                                  App(App(App(p, x), y), e)
+                              |_ -> raise (Type_error "e must be of type Eq(a, b)")
+                            )
+                      )
+                )
+            |_ -> raise (Type_error "r must be of type Pi(x, A, App(App(App(p, x), x), Refl x))")
+          )
+        | _ -> raise (Type_error "p must be of type Pi(x, A, Pi(y, A, Pi(_, Eq(x, y), Type)))")
+    )
 and check ctx e t =
   let inferred_type = infer ctx e in
   if conv ctx inferred_type t then ()
   else
-    let err = Printf.sprintf "Expected type %s but got type %s" (to_string t) (to_string inferred_type) in
+    let err = Printf.sprintf "Expected type %s but got type %s in check" (to_string t) (to_string inferred_type) in
     raise (Type_error err)
 
 let () =
