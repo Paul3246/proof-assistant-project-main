@@ -21,9 +21,6 @@ let rec string_of_ty ty =
   | TCoprod (ty1, ty2) -> Printf.sprintf "(%s ∨ %s)" (string_of_ty ty1) (string_of_ty ty2)
   | TFalse -> "⊥"
   | TNat -> "ℕ"
-  | TZero -> "0"
-  | TSuc ty -> Printf.sprintf "S(%s)" (string_of_ty ty)
-  | TRec (ty1, ty2, ty3) -> Printf.sprintf "rec(%s, %s, %s)" (string_of_ty ty1) (string_of_ty ty2) (string_of_ty ty3)
 
 (*gives a string representation of a term*)
 let rec string_of_tm tm =

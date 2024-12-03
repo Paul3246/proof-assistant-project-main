@@ -33,9 +33,6 @@ ty:
   | FALSE     { TFalse }
   | LPAR ty RPAR { $2 }
   | NAT  { TNat }
-  | ZERO { TZero }
-  | SUCC ty { TSuc $2 }
-  | REC LPAR ty COMMA ty COMMA ty RPAR { TRec ($3, $5, $7) }
 
 /* A term */
 tm:

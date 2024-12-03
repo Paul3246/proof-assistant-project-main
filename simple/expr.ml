@@ -12,10 +12,6 @@ type ty =
   | TCoprod of ty * ty
   | TFalse
   | TNat
-  | TZero
-  | TSuc of ty
-  | TRec of ty * ty * ty
-
 
 (** Terms. *)
 type tm =
