@@ -254,63 +254,21 @@ let rec infer ctx e =
   | Refl e ->
     let _ = infer ctx e in
     Eq(e, e)
-  | J (p, r, x, y, e) ->
-    let inferred_p = infer ctx p in
-    let inferred_r = infer ctx r in
-    let inferred_x = infer ctx x in
-    let inferred_y = infer ctx y in
-    let inferred_e = infer ctx e in
-    (match inferred_p with
-      |Pi(x', type_A, Pi(y', type_A', Pi(_, Eq(x'',y''), Type)))->
-        if not (conv ctx type_A type_A') then
-          raise (Type_error "in J, x and y must have the same type")
-        else if not (conv ctx (Var x') x'') then
-          raise (Type_error "in J, x and x' must be convertible")
-        else if not (conv ctx (Var y') y'') then
-          raise (Type_error "in J, y and y' must be convertible")
-        else
-          (match inferred_r with
-            | Pi (_x', _type_a, Type)->
-              (* if not (conv ctx type_a type_A) then
-                raise (Type_error "in J, x must have the same type as x in Pi")
-              else if not (conv ctx (Var x') x'') then
-                raise (Type_error "in J, x must be convertible to x' in Pi")
-              else if not (conv ctx x'' x''') then
-                raise (Type_error "in J, x' must be convertible to x'' in Pi")
-              else if not (conv ctx x''' x'''') then
-                raise (Type_error "in J, x'' must be convertible to x''' in Pi")
-              else if not (conv ctx p' p) then
-                raise (Type_error "in J, p' must be convertible to p in Pi")
-              else *)
-                (
-                  match inferred_x with
-                  | typ_a ->
-                    if not (conv ctx typ_a type_A) then
-                      raise (Type_error "in J, x must have the same type as x in Pi")
-                    else
-                      (
-                        match inferred_y with
-                        | typ_b ->
-                          if not (conv ctx typ_b type_A) then
-                            raise (Type_error "in J, y must have the same type as x in Pi")
-                          else
-                            (
-                              match inferred_e with
-                              | Eq(a, b) ->
-                                if not (conv ctx a x) then
-                                  raise (Type_error "in J, a must be convertible to x")
-                                else if not (conv ctx b y) then
-                                  raise (Type_error "in J, b must be convertible to y")
-                                else
-                                  App(App(App(p, x), y), e)
-                              |_ -> raise (Type_error "e must be of type Eq(a, b)")
-                            )
-                      )
-                )
-            |_ -> raise (Type_error "r must be of type Pi(x, A, App(App(App(p, x), x), Refl x))")
-          )
-        | _ -> raise (Type_error "p must be of type Pi(x, A, Pi(y, A, Pi(_, Eq(x, y), Type)))")
-    )
+    | J (p, r, x, y, e) ->
+      let x_typ = infer ctx x in
+      check ctx y x_typ;
+  
+      let p_val =
+        Pi ("x", x_typ, Pi ("y", x_typ, Pi ("e", Eq (Var "x", Var "y"), Type)))
+      in
+      let r_val = Pi ("x", x_typ, App (App (App (p, Var "x"), Var "x"), Refl (Var "x"))) in
+      let e_val = Eq (x, y) in
+  
+      check ctx p p_val;
+      check ctx r r_val;
+      check ctx e e_val;
+  
+      App (App (App (p, x), y), e)
 and check ctx e t =
   let inferred_type = infer ctx e in
   if conv ctx inferred_type t then ()

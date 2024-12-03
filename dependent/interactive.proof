@@ -1,9 +1,22 @@
 define pred = fun (n : Nat) -> Ind (fun (x : Nat) -> Nat) Z (fun (k : Nat) -> fun (z : Nat) -> k) n
+
 define add = fun (n : Nat) → fun (m : Nat) → Ind (fun (d : Nat) -> Nat) n (fun (k : Nat) -> fun (d : Nat) -> S d) m
+
 eval pred Z
 eval pred (S (S (S Z)))
+
 eval add (S (S (S Z))) (S (S Z))
-define Seq = fun (x : Nat) -> fun (y : Nat) -> fun (e : x = y) -> J (fun (x : Nat) -> fun (y : Nat) -> fun (e : x = y) -> S x = S y) (fun (x : Nat) -> ((fun (x : Nat) -> fun (y : Nat) -> fun (e : x = y) -> S x = S y)) x x (Refl x)) x y e
+
+define Seq = fun (x : Nat) -> fun (y : Nat) -> fun (e : x = y) -> J (fun (x : Nat) -> fun (y : Nat) -> fun (e : x = y) -> S x = S y) (fun (x : Nat) -> (Refl (S x))) x y e
 check Seq = Pi (x : Nat) -> Pi (y : Nat) -> Pi (e : x = y) -> S x = S y
+
+define p2 = fun (n : Nat) -> add Z n = n
+define s2 = fun (n : Nat) -> fun (h : p2 n) -> Seq (add Z n) n h
+define zadd = fun (n : Nat) -> Ind p2 (Refl Z) s2 n
+check zadd = Pi (n : Nat) -> add Z n = n
+
 define addz = fun (n : Nat) -> Refl (add n Z)
 check addz = Pi (n : Nat) -> add n Z = n
+
+define addassoc = fun (x : Nat) -> fun (y : Nat) -> fun (z : Nat) -> Ind (fun (z : Nat) -> add (add x y) z = add x (add y z)) (Refl (add x y)) (fun (z : Nat) -> fun (e : add (add x y) z = add x (add y z)) -> Seq (add (add x y) z) (add x (add y z)) e) z
+check addassoc = Pi (x : Nat) -> Pi (y : Nat) -> Pi (z : Nat) -> add (add x y) z = add x (add y z)
